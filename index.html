@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Contabilidade Empresarial</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0e1210;--surface:#161c18;--card:#1c2420;--border:#2a3830;
+  --green:#4caf7d;--green-dim:#2d6b4a;--red:#e05c5c;--red-dim:#7a2d2d;
+  --gold:#c8a96e;--text:#e8ede9;--muted:#7a9082;
+  --mono:'IBM Plex Mono',monospace;--serif:'Playfair Display',serif;--sans:'IBM Plex Sans',sans-serif;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;line-height:1.6}
+
+/* Loading */
+#loading-screen{display:none;align-items:center;justify-content:center;min-height:100vh;background:var(--bg);flex-direction:column;gap:16px}
+#loading-screen.active{display:flex}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Auth */
+.auth-screen{display:none;align-items:center;justify-content:center;min-height:100vh;background:radial-gradient(ellipse 60% 50% at 50% 0%,#1d3327 0%,transparent 70%),var(--bg)}
+.auth-screen.active{display:flex}
+.auth-box{width:100%;max-width:420px;padding:48px 40px;background:var(--surface);border:1px solid var(--border);border-radius:4px;text-align:center;animation:fadeUp .5s ease both}
+.auth-logo{font-family:var(--serif);font-size:1.8rem;color:var(--gold);margin-bottom:4px}
+.auth-sub{font-size:.72rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:32px}
+.auth-tabs{display:flex;border:1px solid var(--border);border-radius:3px;margin-bottom:28px;overflow:hidden}
+.auth-tab{flex:1;padding:10px;background:transparent;border:none;color:var(--muted);font-family:var(--mono);font-size:.75rem;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;transition:all .2s}
+.auth-tab.active{background:var(--green-dim);color:var(--green)}
+.fg{margin-bottom:16px;text-align:left}
+.fg label{display:block;font-size:.68rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.ai{width:100%;padding:12px 14px;background:var(--card);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:var(--sans);font-size:.92rem;outline:none;transition:border-color .2s}
+.ai:focus{border-color:var(--green)}
+.auth-btn{width:100%;padding:13px;margin-top:6px;background:var(--green-dim);border:1px solid var(--green);border-radius:3px;color:var(--green);font-family:var(--mono);font-size:.82rem;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:background .2s,color .2s}
+.auth-btn:hover{background:var(--green);color:#0e1210}
+.auth-btn:disabled{opacity:.5;cursor:not-allowed}
+.pwd-hint{font-size:.7rem;color:var(--muted);margin-top:5px}
+.auth-error{margin-top:12px;font-size:.8rem;color:var(--red);min-height:1.2em;text-align:center}
+.auth-ok{margin-top:12px;font-size:.8rem;color:var(--green);min-height:1.2em;text-align:center}
+
+/* App */
+#app{display:none;min-height:100vh}
+header{display:flex;align-items:center;justify-content:space-between;padding:16px 32px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;flex-wrap:wrap;gap:10px}
+.brand{font-family:var(--serif);font-size:1.25rem;color:var(--gold)}
+.brand span{font-family:var(--sans);font-size:.68rem;color:var(--muted);display:block;letter-spacing:2px;text-transform:uppercase}
+.header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.user-badge{font-family:var(--mono);font-size:.72rem;color:var(--muted);padding:6px 12px;border:1px solid var(--border);border-radius:3px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hdr-btn{padding:7px 14px;background:transparent;border:1px solid var(--border);border-radius:3px;color:var(--muted);font-family:var(--mono);font-size:.7rem;letter-spacing:1px;cursor:pointer;transition:border-color .2s,color .2s}
+.hdr-btn:hover{border-color:var(--red);color:var(--red)}
+.hdr-btn.exp:hover{border-color:var(--gold);color:var(--gold)}
+main{max-width:1100px;margin:0 auto;padding:32px 24px 60px}
+
+/* Month bar */
+.month-bar{display:flex;align-items:center;gap:12px;margin-bottom:28px;flex-wrap:wrap}
+.month-bar label{font-size:.7rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
+select.sel{padding:8px 13px;background:var(--surface);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:var(--mono);font-size:.86rem;outline:none;cursor:pointer}
+select.sel:focus{border-color:var(--green)}
+
+/* KPIs */
+.kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px}
+@media(max-width:640px){.kpi-row{grid-template-columns:1fr}}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:4px;padding:20px 22px;position:relative;overflow:hidden;animation:fadeUp .4s ease both}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.kpi.in::before{background:var(--green)}.kpi.out::before{background:var(--red)}.kpi.bal::before{background:var(--gold)}
+.kpi-label{font-size:.66rem;letter-spacing:2.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.kpi-value{font-family:var(--mono);font-size:1.6rem;font-weight:500}
+.kpi.in .kpi-value{color:var(--green)}.kpi.out .kpi-value{color:var(--red)}.kpi.bal .kpi-value{color:var(--gold)}
+.kpi-count{font-size:.7rem;color:var(--muted);margin-top:5px}
+
+/* Form */
+.section-title{font-family:var(--serif);font-size:1.05rem;color:var(--gold);margin-bottom:14px;padding-bottom:9px;border-bottom:1px solid var(--border)}
+.form-card{background:var(--card);border:1px solid var(--border);border-radius:4px;padding:22px;margin-bottom:28px;animation:fadeUp .45s ease both}
+.form-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1.4fr auto;gap:12px;align-items:end}
+@media(max-width:700px){.form-grid{grid-template-columns:1fr 1fr}}
+.field label{display:block;font-size:.66rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.field input,.field select{width:100%;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:var(--sans);font-size:.86rem;outline:none;transition:border-color .2s}
+.field input:focus,.field select:focus{border-color:var(--green)}
+.field input[type=number]{font-family:var(--mono)}
+.add-btn{padding:9px 20px;background:var(--green-dim);border:1px solid var(--green);border-radius:3px;color:var(--green);font-family:var(--mono);font-size:.78rem;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;white-space:nowrap;transition:background .2s,color .2s;height:38px}
+.add-btn:hover{background:var(--green);color:#0e1210}
+.add-btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* Table */
+.table-wrap{background:var(--card);border:1px solid var(--border);border-radius:4px;overflow:hidden;animation:fadeUp .5s ease both;margin-bottom:36px}
+table{width:100%;border-collapse:collapse}
+thead tr{background:var(--surface)}
+th{padding:11px 15px;text-align:left;font-size:.63rem;letter-spacing:2.5px;text-transform:uppercase;color:var(--muted);font-weight:500;border-bottom:1px solid var(--border)}
+tbody tr{border-bottom:1px solid #1f2921;transition:background .15s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:#1f2a22}
+td{padding:11px 15px;font-size:.875rem}
+.td-date{font-family:var(--mono);font-size:.78rem;color:var(--muted)}
+.td-val{font-family:var(--mono);font-weight:500}
+.td-val.entrada{color:var(--green)}.td-val.saida{color:var(--red)}
+.td-who{font-size:.7rem;color:var(--muted);font-family:var(--mono)}
+.badge{display:inline-block;padding:2px 8px;border-radius:2px;font-size:.63rem;letter-spacing:1.5px;text-transform:uppercase;font-family:var(--mono)}
+.badge.entrada{background:#1b3326;color:var(--green)}.badge.saida{background:#3a1a1a;color:var(--red)}
+.del-btn{background:none;border:none;color:var(--border);cursor:pointer;font-size:.95rem;padding:2px 6px;border-radius:2px;transition:color .2s,background .2s}
+.del-btn:hover{color:var(--red);background:#3a1a1a}
+.empty-row td{text-align:center;padding:44px;color:var(--muted);font-style:italic}
+
+/* Chart */
+.chart-section{margin-bottom:36px;animation:fadeUp .55s ease both}
+.chart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px}
+.chart-grid{background:var(--card);border:1px solid var(--border);border-radius:4px;padding:22px}
+.chart-bars{display:grid;grid-template-columns:repeat(12,1fr);gap:6px;align-items:end;height:130px;margin-bottom:6px}
+.bar-col{display:flex;flex-direction:column;align-items:center;gap:3px;height:100%;justify-content:flex-end}
+.bar-wrap{width:100%;display:flex;gap:2px;align-items:flex-end;justify-content:center}
+.bar{width:42%;border-radius:2px 2px 0 0;min-height:2px;transition:height .4s ease;position:relative}
+.bar.b-in{background:var(--green);opacity:.75}.bar.b-out{background:var(--red);opacity:.75}
+.bar:hover{opacity:1}
+.bar-label{font-family:var(--mono);font-size:.56rem;color:var(--muted);text-transform:uppercase}
+.chart-legend{display:flex;gap:18px;margin-top:10px;font-size:.68rem;color:var(--muted)}
+.leg{display:flex;align-items:center;gap:6px}
+.leg-dot{width:10px;height:10px;border-radius:2px}
+[data-tip]{position:relative}
+[data-tip]:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#2a3830;color:var(--text);font-size:.68rem;font-family:var(--mono);white-space:nowrap;padding:4px 8px;border-radius:3px;border:1px solid var(--border);pointer-events:none;z-index:999}
+
+/* Config */
+.config-card{background:var(--card);border:1px solid var(--border);border-radius:4px;padding:20px 22px;margin-bottom:40px}
+.config-sub{font-size:.78rem;color:var(--muted);margin-bottom:14px}
+.config-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.cfg-f label{display:block;font-size:.66rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.cfg-input{padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:var(--mono);font-size:.86rem;outline:none;width:200px}
+.cfg-input:focus{border-color:var(--green)}
+.cfg-btn{padding:9px 16px;background:transparent;border:1px solid var(--border);border-radius:3px;color:var(--muted);font-family:var(--mono);font-size:.72rem;letter-spacing:1px;cursor:pointer;transition:border-color .2s,color .2s}
+.cfg-btn:hover{border-color:var(--gold);color:var(--gold)}
+.cfg-msg{font-size:.78rem;margin-top:8px;min-height:1.2em}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading-screen" class="active">
+  <div class="spinner"></div>
+  <div style="font-family:var(--mono);font-size:.78rem;color:var(--muted);letter-spacing:2px">CARREGANDO...</div>
+</div>
+
+<!-- AUTH -->
+<div class="auth-screen" id="auth-screen">
+  <div class="auth-box">
+    <div class="auth-logo">Ledger</div>
+    <div class="auth-sub">Contabilidade Empresarial</div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-login" onclick="switchTab('login')">Entrar</button>
+      <button class="auth-tab" id="tab-reg" onclick="switchTab('reg')">Criar Conta</button>
+    </div>
+
+    <!-- Login -->
+    <div id="form-login">
+      <div class="fg"><label>E-mail</label><input type="email" id="l-email" class="ai" placeholder="seu@email.com"/></div>
+      <div class="fg"><label>Senha</label><input type="password" id="l-pwd" class="ai" placeholder="••••••••"/></div>
+      <button class="auth-btn" id="btn-login" onclick="doLogin()">Entrar</button>
+    </div>
+
+    <!-- Register -->
+    <div id="form-reg" style="display:none">
+      <div class="fg"><label>Nome completo</label><input type="text" id="r-name" class="ai" placeholder="João Silva"/></div>
+      <div class="fg"><label>E-mail</label><input type="email" id="r-email" class="ai" placeholder="seu@email.com"/></div>
+      <div class="fg">
+        <label>Senha</label><input type="password" id="r-pwd" class="ai" placeholder="Mínimo 8 caracteres"/>
+        <div class="pwd-hint">🔒 A senha é criptografada pelo Firebase — nunca fica visível no banco.</div>
+      </div>
+      <div class="fg"><label>Confirmar senha</label><input type="password" id="r-pwd2" class="ai" placeholder="Repita a senha"/></div>
+      <button class="auth-btn" id="btn-reg" onclick="doRegister()">Criar Conta</button>
+    </div>
+
+    <div class="auth-error" id="auth-err"></div>
+    <div class="auth-ok"    id="auth-ok"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <header>
+    <div class="brand">Ledger <span>Contabilidade Empresarial</span></div>
+    <div class="header-right">
+      <div class="user-badge" id="user-badge">—</div>
+      <button class="hdr-btn exp" onclick="exportCSV()">⬇ CSV</button>
+      <button class="hdr-btn" onclick="doLogout()">Sair</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="month-bar">
+      <label>Período:</label>
+      <select class="sel" id="year-sel" onchange="render()"></select>
+      <select class="sel" id="month-sel" onchange="render()">
+        <option value="0">Janeiro</option><option value="1">Fevereiro</option><option value="2">Março</option>
+        <option value="3">Abril</option><option value="4">Maio</option><option value="5">Junho</option>
+        <option value="6">Julho</option><option value="7">Agosto</option><option value="8">Setembro</option>
+        <option value="9">Outubro</option><option value="10">Novembro</option><option value="11">Dezembro</option>
+      </select>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi in"><div class="kpi-label">Total Entradas</div><div class="kpi-value" id="kpi-in">R$ 0,00</div><div class="kpi-count" id="kpi-in-c">0 lançamentos</div></div>
+      <div class="kpi out"><div class="kpi-label">Total Saídas</div><div class="kpi-value" id="kpi-out">R$ 0,00</div><div class="kpi-count" id="kpi-out-c">0 lançamentos</div></div>
+      <div class="kpi bal"><div class="kpi-label">Saldo do Mês</div><div class="kpi-value" id="kpi-bal">R$ 0,00</div><div class="kpi-count" id="kpi-bal-n">—</div></div>
+    </div>
+
+    <div class="form-card">
+      <div class="section-title">Novo Lançamento</div>
+      <div class="form-grid">
+        <div class="field"><label>Tipo</label><select id="f-tipo"><option value="entrada">Entrada</option><option value="saida">Saída</option></select></div>
+        <div class="field"><label>Data</label><input type="date" id="f-data"/></div>
+        <div class="field"><label>Valor (R$)</label><input type="number" id="f-valor" placeholder="0,00" min="0" step="0.01"/></div>
+        <div class="field"><label>Descrição</label><input type="text" id="f-desc" placeholder="Ex: Venda, Fornecedor..."/></div>
+        <div><button class="add-btn" id="btn-add" onclick="addTx()">+ Lançar</button></div>
+      </div>
+    </div>
+
+    <div class="section-title">Lançamentos do Mês</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th style="text-align:right">Valor</th><th>Lançado por</th><th></th></tr></thead>
+        <tbody id="tx-body"><tr class="empty-row"><td colspan="6">Carregando...</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="chart-section">
+      <div class="chart-header">
+        <div class="section-title" style="margin:0;border:none;padding:0">Visão Anual</div>
+        <select class="sel" id="chart-year" onchange="renderChart()"></select>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-bars" id="chart-bars"></div>
+        <div class="chart-legend">
+          <div class="leg"><div class="leg-dot" style="background:var(--green)"></div>Entradas</div>
+          <div class="leg"><div class="leg-dot" style="background:var(--red)"></div>Saídas</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">Configurações</div>
+    <div class="config-card">
+      <div class="config-sub">Alterar senha da sua conta</div>
+      <div class="config-row">
+        <div class="cfg-f"><label>Nova senha</label><input type="password" id="cfg-p1" class="cfg-input" placeholder="••••••••"/></div>
+        <div class="cfg-f"><label>Confirmar</label><input type="password" id="cfg-p2" class="cfg-input" placeholder="••••••••"/></div>
+        <button class="cfg-btn" onclick="changePwd()">Salvar</button>
+      </div>
+      <div class="cfg-msg" id="cfg-msg"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════
+// 🔧 COLE SUAS CREDENCIAIS DO FIREBASE AQUI
+// ════════════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyBIZ_pOyJwIiSlUlJPEYPUuCaIgra0GJQI",
+  authDomain: "contabilidadji.firebaseapp.com",
+  projectId: "contabilidadji",
+  storageBucket: "contabilidadji.firebasestorage.app",
+  messagingSenderId: "114598568524",
+  appId: "1:114598568524:web:9aa0c0cff23986d3f64ae9"
+};
+// ════════════════════════════════════════════════════
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+let me = null, allTx = [], unsub = null;
+const MONTHS     = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const MONTHS_F   = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+// Auth state
+auth.onAuthStateChanged(user => {
+  if (user) {
+    me = user;
+    showApp();
+  } else {
+    me = null;
+    if (unsub) { unsub(); unsub = null; }
+    show('auth');
+  }
+});
+
+function showApp() {
+  show('app');
+  document.getElementById('user-badge').textContent = me.displayName ? `${me.displayName} · ${me.email}` : me.email;
+  const now = new Date(), yr = now.getFullYear();
+  ['year-sel','chart-year'].forEach(id => {
+    const s = document.getElementById(id); s.innerHTML = '';
+    for (let y = yr-3; y <= yr+1; y++) s.innerHTML += `<option value="${y}"${y===yr?' selected':''}>${y}</option>`;
+  });
+  document.getElementById('month-sel').value = now.getMonth();
+  document.getElementById('f-data').value    = now.toISOString().split('T')[0];
+
+  if (unsub) unsub();
+  unsub = db.collection('transactions').orderBy('date','asc').onSnapshot(snap => {
+    allTx = snap.docs.map(d => ({id:d.id,...d.data()}));
+    render();
+  });
+}
+
+// Tab
+function switchTab(t) {
+  document.getElementById('auth-err').textContent = '';
+  document.getElementById('auth-ok').textContent  = '';
+  document.getElementById('form-login').style.display = t==='login' ? 'block' : 'none';
+  document.getElementById('form-reg').style.display   = t==='reg'   ? 'block' : 'none';
+  document.getElementById('tab-login').classList.toggle('active', t==='login');
+  document.getElementById('tab-reg').classList.toggle('active',   t==='reg');
+}
+
+// Login
+async function doLogin() {
+  const email = document.getElementById('l-email').value.trim();
+  const pwd   = document.getElementById('l-pwd').value;
+  if (!email||!pwd) { setErr('Preencha e-mail e senha.'); return; }
+  setBusy('btn-login', true, 'Entrando...');
+  try {
+    await auth.signInWithEmailAndPassword(email, pwd);
+  } catch(e) {
+    setErr(fbMsg(e.code));
+    setBusy('btn-login', false, 'Entrar');
+  }
+}
+
+// Register
+async function doRegister() {
+  const name  = document.getElementById('r-name').value.trim();
+  const email = document.getElementById('r-email').value.trim();
+  const p1    = document.getElementById('r-pwd').value;
+  const p2    = document.getElementById('r-pwd2').value;
+  if (!name||!email||!p1||!p2) { setErr('Preencha todos os campos.'); return; }
+  if (p1.length < 8)   { setErr('A senha deve ter ao menos 8 caracteres.'); return; }
+  if (p1 !== p2)        { setErr('As senhas não coincidem.'); return; }
+  setBusy('btn-reg', true, 'Criando...');
+  try {
+    const c = await auth.createUserWithEmailAndPassword(email, p1);
+    await c.user.updateProfile({displayName: name});
+  } catch(e) {
+    setErr(fbMsg(e.code));
+    setBusy('btn-reg', false, 'Criar Conta');
+  }
+}
+
+// Logout
+async function doLogout() {
+  if (unsub) { unsub(); unsub = null; }
+  await auth.signOut();
+}
+
+// Change password
+async function changePwd() {
+  const p1 = document.getElementById('cfg-p1').value;
+  const p2 = document.getElementById('cfg-p2').value;
+  const el = document.getElementById('cfg-msg');
+  if (!p1)        { cfgMsg('Digite a nova senha.', false); return; }
+  if (p1.length<8){ cfgMsg('Mínimo 8 caracteres.', false); return; }
+  if (p1!==p2)    { cfgMsg('As senhas não coincidem.', false); return; }
+  try {
+    await me.updatePassword(p1);
+    cfgMsg('Senha alterada com sucesso!', true);
+    document.getElementById('cfg-p1').value = '';
+    document.getElementById('cfg-p2').value = '';
+    setTimeout(()=>el.textContent='', 3000);
+  } catch(e) {
+    cfgMsg(e.code==='auth/requires-recent-login'
+      ? 'Por segurança, faça logout e login novamente antes de trocar a senha.'
+      : fbMsg(e.code), false);
+  }
+}
+
+// Render month
+function render() {
+  const year  = +document.getElementById('year-sel').value;
+  const month = +document.getElementById('month-sel').value;
+  const txs   = allTx.filter(t => { const d=new Date(t.date+'T00:00:00'); return d.getFullYear()===year&&d.getMonth()===month; });
+  const tIn   = txs.filter(t=>t.tipo==='entrada').reduce((s,t)=>s+t.valor,0);
+  const tOut  = txs.filter(t=>t.tipo==='saida').reduce((s,t)=>s+t.valor,0);
+  const bal   = tIn - tOut;
+
+  document.getElementById('kpi-in').textContent  = fmt(tIn);
+  document.getElementById('kpi-out').textContent = fmt(tOut);
+  document.getElementById('kpi-bal').textContent = fmt(bal);
+  document.getElementById('kpi-in-c').textContent  = txs.filter(t=>t.tipo==='entrada').length+' lançamento(s)';
+  document.getElementById('kpi-out-c').textContent = txs.filter(t=>t.tipo==='saida').length+' lançamento(s)';
+  document.getElementById('kpi-bal-n').textContent = bal>=0?'▲ Positivo':'▼ Negativo';
+  document.getElementById('kpi-bal').style.color   = bal>=0?'var(--gold)':'var(--red)';
+
+  const tbody = document.getElementById('tx-body');
+  if (!txs.length) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="6">Nenhum lançamento em ${MONTHS_F[month]} ${year}.</td></tr>`;
+  } else {
+    tbody.innerHTML = txs.map(t => `
+      <tr>
+        <td class="td-date">${new Date(t.date+'T00:00:00').toLocaleDateString('pt-BR')}</td>
+        <td><span class="badge ${t.tipo}">${t.tipo==='entrada'?'Entrada':'Saída'}</span></td>
+        <td>${esc(t.desc||'—')}</td>
+        <td class="td-val ${t.tipo}" style="text-align:right">${t.tipo==='entrada'?'+ ':'- '}${fmt(t.valor)}</td>
+        <td class="td-who">${esc(t.userName||t.userEmail||'—')}</td>
+        <td><button class="del-btn" onclick="delTx('${t.id}')" title="Excluir">✕</button></td>
+      </tr>`).join('');
+  }
+  renderChart();
+}
+
+// Add transaction
+async function addTx() {
+  const tipo  = document.getElementById('f-tipo').value;
+  const date  = document.getElementById('f-data').value;
+  const valor = parseFloat(document.getElementById('f-valor').value);
+  const desc  = document.getElementById('f-desc').value.trim();
+  if (!date||isNaN(valor)||valor<=0) { alert('Preencha a data e o valor corretamente.'); return; }
+  setBusy('btn-add', true, 'Salvando...');
+  try {
+    await db.collection('transactions').add({
+      tipo, date, valor, desc,
+      userEmail: me.email,
+      userName:  me.displayName||me.email,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    const d = new Date(date+'T00:00:00');
+    document.getElementById('year-sel').value  = d.getFullYear();
+    document.getElementById('month-sel').value = d.getMonth();
+    document.getElementById('f-valor').value = '';
+    document.getElementById('f-desc').value  = '';
+  } catch(e) { alert('Erro ao salvar: '+e.message); }
+  setBusy('btn-add', false, '+ Lançar');
+}
+
+// Delete
+async function delTx(id) {
+  if (!confirm('Excluir este lançamento?')) return;
+  try { await db.collection('transactions').doc(id).delete(); }
+  catch(e) { alert('Erro: '+e.message); }
+}
+
+// Chart
+function renderChart() {
+  const year = +document.getElementById('chart-year').value;
+  const txs  = allTx.filter(t => new Date(t.date+'T00:00:00').getFullYear()===year);
+  const tot  = Array.from({length:12},(_,m)=>({
+    in:  txs.filter(t=>new Date(t.date+'T00:00:00').getMonth()===m&&t.tipo==='entrada').reduce((s,t)=>s+t.valor,0),
+    out: txs.filter(t=>new Date(t.date+'T00:00:00').getMonth()===m&&t.tipo==='saida').reduce((s,t)=>s+t.valor,0),
+  }));
+  const max = Math.max(...tot.flatMap(t=>[t.in,t.out]),1);
+  document.getElementById('chart-bars').innerHTML = tot.map((t,m)=>`
+    <div class="bar-col">
+      <div class="bar-wrap">
+        <div class="bar b-in"  style="height:${Math.round(t.in /max*120)}px" data-tip="${MONTHS[m]} E: ${fmt(t.in)}"></div>
+        <div class="bar b-out" style="height:${Math.round(t.out/max*120)}px" data-tip="${MONTHS[m]} S: ${fmt(t.out)}"></div>
+      </div>
+      <div class="bar-label">${MONTHS[m]}</div>
+    </div>`).join('');
+}
+
+// Export CSV
+function exportCSV() {
+  const rows = [...allTx].sort((a,b)=>a.date.localeCompare(b.date))
+    .map(t=>`${t.date},${t.tipo==='entrada'?'Entrada':'Saída'},"${(t.desc||'').replace(/"/g,'""')}",${t.valor.toFixed(2)},"${(t.userName||'').replace(/"/g,'""')}"`);
+  const csv  = ['Data,Tipo,Descrição,Valor,Lançado por',...rows].join('\n');
+  const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  const a    = Object.assign(document.createElement('a'),{href:URL.createObjectURL(blob),download:'ledger.csv'});
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+// Helpers
+function show(id) {
+  document.getElementById('loading-screen').classList.toggle('active', id==='loading');
+  document.getElementById('auth-screen').classList.toggle('active', id==='auth');
+  document.getElementById('app').style.display = id==='app' ? 'block' : 'none';
+}
+const fmt = v => 'R$ '+Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc = s => { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; };
+function setErr(m){ document.getElementById('auth-err').textContent=m; document.getElementById('auth-ok').textContent=''; }
+function setBusy(id,on,label){ const b=document.getElementById(id); if(b){b.disabled=on;b.textContent=label;} }
+function cfgMsg(m,ok){ const e=document.getElementById('cfg-msg'); e.textContent=m; e.style.color=ok?'var(--green)':'var(--red)'; }
+function fbMsg(code){
+  return({
+    'auth/user-not-found':      'E-mail não cadastrado.',
+    'auth/wrong-password':      'Senha incorreta.',
+    'auth/email-already-in-use':'Este e-mail já está cadastrado.',
+    'auth/invalid-email':       'E-mail inválido.',
+    'auth/weak-password':       'Senha muito fraca. Use ao menos 8 caracteres.',
+    'auth/too-many-requests':   'Muitas tentativas. Tente mais tarde.',
+    'auth/network-request-failed':'Sem conexão com a internet.',
+  }[code]||'Erro inesperado. Tente novamente.');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key!=='Enter') return;
+  if (document.getElementById('form-login').style.display!=='none') doLogin();
+  else doRegister();
+});
+</script>
+</body>
+</html>
